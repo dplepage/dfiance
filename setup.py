@@ -9,7 +9,7 @@ setup(
     author="Daniel Lepage",
     author_email="dplepage@gmail.com",
     packages=['dfiance',],
-    long_description=open('README.rst').read(),
+    long_description=open('README.txt').read(),
     classifiers=[
         "Development Status :: 3 - Alpha",
         "Programming Language :: Python :: 2",
