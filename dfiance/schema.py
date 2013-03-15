@@ -36,6 +36,8 @@ class SchemaObj(Subclassable, Dictifiable):
         '''
         super(SchemaObj, cls).__subclass__(**kwargs)
         cls.field_types = overlay(cls.field_types, field_types)
+        for key, field_or_dfier in cls.field_types.iteritems():
+            cls.field_types[key] = Field.asfield(field_or_dfier)
 
     def _handle_fields(self, value, error_agg, kwargs):
         '''Undictify our fields. Override this to customize subfields.'''
