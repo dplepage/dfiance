@@ -1,6 +1,7 @@
 from base import Dictifier, ErrorAggregator, Invalid, Field
+from nested import NestedDictifier
 
-class List(Dictifier):
+class List(NestedDictifier):
     '''Dictifier for homogenous lists
 
     The argument elt_type is the dictifier for the elements in the list; if it
@@ -37,6 +38,15 @@ class List(Dictifier):
         if not isinstance(elt_type, Field):
             elt_type = Field(elt_type, not_empty=required)
         self.elt_type = elt_type
+
+    def keys(self, value):
+        return range(len(value))
+
+    def sub(self, value, key):
+        return value[key]
+
+    def sub_df(self, key):
+        return self.elt_type
 
     def undictify(self, value, **kwargs):
         # If _full_errors is True, then gather all errors from this and its

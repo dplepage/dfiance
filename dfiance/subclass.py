@@ -50,11 +50,13 @@ This can be rectified via the special __class_name attribute:
 
 '''
 
+from abc import ABCMeta
 
-class SubclassableMeta(type):
+
+class SubclassableMeta(ABCMeta):
     '''Metaclass for classes that can easily programmatically subclass.'''
     def __new__(cls, name, supers, kwargs):
-        t = type.__new__(cls, name, supers, {})
+        t = ABCMeta.__new__(cls, name, supers, {})
         # Force __subclass__ to be a classmethod
         if not isinstance(t.__subclass__, classmethod):
             t.__subclass__ = classmethod(t.__subclass__.im_func)

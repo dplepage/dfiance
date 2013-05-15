@@ -1,5 +1,5 @@
 from base import Invalid, ErrorAggregator, Field
-from dictifiable import Dictifiable
+from dictifiable import NestedDictifiable
 from subclass import Subclassable
 
 def overlay(d1, d2, strip_none=True):
@@ -18,13 +18,23 @@ def overlay(d1, d2, strip_none=True):
                 del x[key]
     return x
 
-class SchemaObj(Subclassable, Dictifiable):
+class SchemaObj(Subclassable, NestedDictifiable):
     extra_field_policy = "ignore"
     field_types = dict()
 
     def __init__(self, **kwargs):
         for key, value in kwargs.items():
             setattr(self, key, value)
+
+    def __df_keys__(self):
+        return self.field_types.keys()
+
+    @classmethod
+    def __sub_df__(cls, key):
+        return cls.field_types[key]
+
+    def __get_sub__(self, key):
+        return getattr(self, key)
 
     @classmethod
     def __subclass__(cls, field_types={}, **kwargs):

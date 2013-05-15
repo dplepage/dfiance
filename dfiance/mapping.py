@@ -1,8 +1,9 @@
 from collections import OrderedDict
 
 from base import Dictifier, ErrorAggregator, Invalid, Field
+from nested import NestedDictifier
 
-class Mapping(Dictifier):
+class Mapping(NestedDictifier):
     '''Dictifier for structured dicts.
 
     The field_types variable describes the type to dictify as an ordered
@@ -67,6 +68,15 @@ class Mapping(Dictifier):
         for key, field_or_dfier in field_types.iteritems():
             self.field_types[key] = Field.asfield(field_or_dfier)
         self.extra_field_policy=extra_field_policy
+
+    def sub(self, val, key):
+        return val[key]
+
+    def sub_df(self, key):
+        return self.field_types[key]
+
+    def keys(self, val):
+        return self.field_types.keys()
 
     def _handle_fields(self, value, error_agg, kwargs):
         '''Undictify our fields. Override this to customize subfields.'''

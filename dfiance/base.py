@@ -1,3 +1,5 @@
+from abc import ABCMeta, abstractmethod
+
 from error_aggregator import ErrorAggregator as _ErrAgg, NestedException
 
 
@@ -37,6 +39,7 @@ class ErrorAggregator(_ErrAgg):
 
 
 class Validator(object):
+    __metaclass__ = ABCMeta
     '''Abstract base class for Validators.'''
     def validate(self, value, **kwargs):
         return
@@ -44,14 +47,37 @@ class Validator(object):
 
 class Dictifier(Validator):
     '''Abstract base class for Dictifiers.'''
+    @abstractmethod
     def dictify(self, value, **kwargs):
         raise NotImplementedError()
 
+    @abstractmethod
     def undictify(self, value, **kwargs):
         raise NotImplementedError()
 
+class NestedDictifier(Dictifier):
+    @abstractmethod
+    def sub(self, val, key):
+        raise NotImplementedError()
 
-class Field(Dictifier):
+    @abstractmethod
+    def sub_df(self, key):
+        raise NotImplementedError()
+
+    @abstractmethod
+    def keys(self, val):
+        raise NotImplementedError()
+
+    @classmethod
+    def __instancecheck__(cls, inst):
+        if super(NestedDictifier, cls).__instancecheck__(inst):
+            return True
+        attrs = ['sub', 'sub_df', 'keys', 'dictify', 'undictify', 'validate']
+        if all(hasattr(inst, x) for x in attrs):
+            return True
+        return False
+
+class Field(NestedDictifier):
     '''Wrapper around a dictifier and an optional list of validators.
 
     A Field behaves like the dictifier handed to it on intialization, except in
@@ -72,6 +98,22 @@ class Field(Dictifier):
         self.dfier = dfier
         self.vdators = tuple(vdators)
         self.not_empty = not_empty
+        self.is_nested = isinstance(self.dfier, NestedDictifier)
+
+    def keys(self, value):
+        if self.is_nested and value is not None:
+            return self.dfier.keys(value)
+        return set()
+
+    def sub(self, value, key):
+        if self.is_nested and value is not None:
+            return self.dfier.sub(value, key)
+        raise KeyError(key)
+
+    def sub_df(self, key):
+        if self.is_nested:
+            return self.dfier.sub_df(key)
+        raise KeyError(key)
 
     def dictify(self, value, **kwargs):
         if value is None:

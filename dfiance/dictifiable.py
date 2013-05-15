@@ -1,4 +1,6 @@
-from base import Dictifier, Invalid
+from abc import ABCMeta, abstractmethod
+
+from base import Dictifier, NestedDictifier, Invalid
 
 class _EmptyClass:
     '''Placeholder class for undictifying Dictifiable instances.'''
@@ -75,6 +77,7 @@ class Dictifiable(object):
     instead of just using the class.
 
     '''
+    __metaclass__ = ABCMeta
     # This class is almost itself a dictifier, but it isn't quite, because the
     # class's validate functions will crash given a value that isn't an instance
     # Python 3 will fix this, because instance methods are callable as
@@ -83,9 +86,11 @@ class Dictifiable(object):
     def dfier(cls):
         return DictifiableDictifier(cls)
 
+    @abstractmethod
     def __dictify__(self, **kwargs):
         raise NotImplementedError()
 
+    @abstractmethod
     def __undictify__(self, value, **kwargs):
         raise NotImplementedError
 
@@ -101,6 +106,39 @@ class Dictifiable(object):
 
     def validate(self, **kwargs):
         return self.dfier().validate(self, **kwargs)
+
+
+class NestedDictifiableDictifier(DictifiableDictifier, NestedDictifier):
+    '''Dictifier for NestedDictifiables.
+    '''
+    def sub(self, val, key):
+        return val.__get_sub__(key)
+
+    def sub_df(self, key):
+        return self.cls.__sub_df__(key)
+
+    def keys(self, val):
+        return val.__df_keys__()
+
+class NestedDictifiable(Dictifiable):
+    @classmethod
+    def dfier(cls):
+        return NestedDictifiableDictifier(cls)
+
+    @abstractmethod
+    def __get_sub__(self, key):
+        raise NotImplementedError()
+
+    # Not abstract because abstractmethod and classmethod don't stack.
+    # Fixed in python 3 - http://bugs.python.org/issue5867
+    @classmethod
+    def __sub_df__(self, key):
+        raise NotImplementedError()
+
+    @abstractmethod
+    def __df_keys__(self):
+        raise NotImplementedError()
+
 
 
 if __name__ == '__main__':
