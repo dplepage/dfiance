@@ -1,13 +1,12 @@
 from base import Dictifier, ErrorAggregator, Invalid, Field
-from nested import NestedDictifier
 
-class List(NestedDictifier):
+class List(Dictifier):
     '''Dictifier for homogenous lists
 
     The argument elt_type is the dictifier for the elements in the list; if it
     is not a Field, it will be wrapped in one.
 
-    The arugment required determines the generated Field's not_empty flag. It is
+    The arugment required determines the generated Field's not_none flag. It is
     ignored if elt_type is a subclass of Field.
 
     For example:
@@ -29,24 +28,15 @@ class List(NestedDictifier):
 
     These two are equivalent:
 
-    >>> l1 = List(Field(Int(), not_empty=False))
+    >>> l1 = List(Field(Int(), not_none=False))
     >>> l2 = List(Int(), required=False)
     >>> l1.validate([1, None, 3])
     >>> l2.validate([1, None, 3])
     '''
     def __init__(self, elt_type, required=True):
         if not isinstance(elt_type, Field):
-            elt_type = Field(elt_type, not_empty=required)
+            elt_type = Field(elt_type, not_none=required)
         self.elt_type = elt_type
-
-    def keys(self, value):
-        return range(len(value))
-
-    def sub(self, value, key):
-        return value[key]
-
-    def sub_df(self, key):
-        return self.elt_type
 
     def undictify(self, value, **kwargs):
         # If _full_errors is True, then gather all errors from this and its
@@ -73,6 +63,25 @@ class List(NestedDictifier):
                 self.elt_type.validate(item)
         error_agg.raise_if_any()
 
+    def sub_dfier_keys(self, value=None):
+        if value is None:
+            return ('elt_type',)
+        return self.sub_value_keys(value)
+
+    def sub_dfier(self, key, value=None):
+        # Note that this returns self.elt_type regardless of the value of key.
+        # Thus, this graph may be zipped to a value graph and the elt_type will
+        # be paired with all sub-values.
+        return self.elt_type
+
+    def sub_value_keys(self, value):
+        return (str(i) for i in range(len(value)))
+
+    def sub_value(self, value, key):
+        try:
+            return value[int(key)]
+        except (ValueError, IndexError):
+            raise KeyError(key)
 
 if __name__ == '__main__':
     import doctest

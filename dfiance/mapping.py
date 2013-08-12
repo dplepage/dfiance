@@ -1,9 +1,9 @@
 from collections import OrderedDict
 
 from base import Dictifier, ErrorAggregator, Invalid, Field
-from nested import NestedDictifier
+from basic import String
 
-class Mapping(NestedDictifier):
+class SchemaMapping(Dictifier):
     '''Dictifier for structured dicts.
 
     The field_types variable describes the type to dictify as an ordered
@@ -13,9 +13,9 @@ class Mapping(NestedDictifier):
     >>> from datetypes import Date
     >>> from datetime import date
     >>> bday = date(1985, 9, 16)
-    >>> schema = Mapping(dict(age=Int(), birthday=Date()))
+    >>> schema = SchemaMapping(dict(age=Int(), birthday=Date()))
     >>> cstruct = schema.dictify(dict(age=27, birthday=bday))
-    >>> cstruct == dict(age=27, birthday=u'09/16/1985')
+    >>> cstruct == dict(age=27, birthday=u'1985-09-16')
     True
     >>> schema.undictify(cstruct) == dict(age=27, birthday=bday)
     True
@@ -31,14 +31,14 @@ class Mapping(NestedDictifier):
     On 'save', extra fields are stored in the returned dictionary under the key
     _extras:
 
-    >>> schema = Mapping(dict(age=Int()), 'save')
+    >>> schema = SchemaMapping(dict(age=Int()), 'save')
     >>> v = schema.undictify({'age':27, 'color':'blue'})
     >>> v == {'age': 27, '_extras': {'color': 'blue'}}
     True
 
     On 'error', extra fields cause an Invalid exception:
 
-    >>> schema = Mapping(dict(age=Int()), 'error')
+    >>> schema = SchemaMapping(dict(age=Int()), 'error')
     >>> v = schema.undictify({'age':27, 'color':'blue'})
     Traceback (most recent call last):
     ...
@@ -46,37 +46,28 @@ class Mapping(NestedDictifier):
 
     On 'ignore', extra fields are discarded:
 
-    >>> schema = Mapping(dict(age=Int()), 'ignore')
+    >>> schema = SchemaMapping(dict(age=Int()), 'ignore')
     >>> v = schema.undictify({'age':27, 'color':'blue'})
     >>> v == {'age': 27}
     True
 
     If the entries in field_types are Fields, they are used directly; if not,
-    they're wrapped in Fields with not_empty=False (so that None is legal):
+    they're wrapped in Fields with not_none=False (so that None is legal):
 
-    >>> schema = Mapping(dict(age=Int()))
+    >>> schema = SchemaMapping(dict(age=Int()))
     >>> schema.validate({'age':None})
-    >>> schema = Mapping(dict(age=Field(Int(), not_empty=True)))
+    >>> schema = SchemaMapping(dict(age=Field(Int(), not_none=True)))
     >>> schema.validate({'age':None})
     Traceback (most recent call last):
     ...
     Invalid: age: [empty]
     '''
     def __init__(self, field_types, extra_field_policy="ignore"):
-        super(Mapping, self).__init__()
+        super(SchemaMapping, self).__init__()
         self.field_types = OrderedDict()
         for key, field_or_dfier in field_types.iteritems():
             self.field_types[key] = Field.asfield(field_or_dfier)
         self.extra_field_policy=extra_field_policy
-
-    def sub(self, val, key):
-        return val[key]
-
-    def sub_df(self, key):
-        return self.field_types[key]
-
-    def keys(self, val):
-        return self.field_types.keys()
 
     def _handle_fields(self, value, error_agg, kwargs):
         '''Undictify our fields. Override this to customize subfields.'''
@@ -135,12 +126,120 @@ class Mapping(NestedDictifier):
     def validate(self, value, **kwargs):
         error_agg = ErrorAggregator(autoraise = kwargs.get('fail_early', False))
         with error_agg.checking():
-            super(Mapping, self).validate(value, **kwargs)
+            super(SchemaMapping, self).validate(value, **kwargs)
         for field, type in self.field_types.iteritems():
             with error_agg.checking_sub(field):
                 type.validate(value[field])
         error_agg.raise_if_any()
 
+    def sub_dfier_keys(self, value=None):
+        return self.field_types.keys()
+
+    def sub_dfier(self, key, value=None):
+        return self.field_types[key]
+
+    def sub_value_keys(self, value):
+        return self.sub_dfier_keys()
+
+    def sub_value(self, value, key):
+        return value[key]
+
+class UniMapping(Dictifier):
+    '''Dictifier for dicts with homogenous keys and homogenous values.
+
+    The key_type and val_type variables determine the types of the keys and the
+    values in the mapping, which should all be the same types.
+
+    >>> from basic import Int
+    >>> from datetypes import Date
+    >>> from datetime import date
+    >>> bday = date(1985, 9, 16)
+    >>> NumToDate = UniMapping(key_type=Int(), val_type=Date())
+    >>> cstruct = NumToDate.dictify({27:bday})
+    >>> cstruct == {27:u'1985-09-16'}
+    True
+    >>> NumToDate.undictify(cstruct) == {27:bday}
+    True
+    >>> NumToDate.validate({27:bday})
+    >>> NumToDate.validate({27.1:"not a date"})
+    Traceback (most recent call last):
+    ...
+    Invalid: key_0: [type_error], value_0: [type_error]
+
+    If the entries in field_types are Fields, they are used directly; if not,
+    they're wrapped in Fields with not_none=False (so that None is legal):
+
+    >>> StrToNum = UniMapping(val_type=Int())
+    >>> StrToNum.validate({'age':None})
+    >>> StrToNum = UniMapping(val_type=Field(Int(), not_none=True))
+    >>> StrToNum.validate({'age':None})
+    Traceback (most recent call last):
+    ...
+    Invalid: value_0: [empty]
+    '''
+    def __init__(self, val_type, key_type=None):
+        super(UniMapping, self).__init__()
+        if key_type is None:
+            key_type = Field(String(), not_none=True)
+        self.key_type = Field.asfield(key_type)
+        self.val_type = Field.asfield(val_type)
+
+    def _handle_fields(self, value, error_agg, kwargs):
+        '''Undictify our fields. Override this to customize subfields.'''
+        data = {}
+        for key, type in self.field_types.iteritems():
+            with error_agg.checking_sub(key):
+                val = value.get(key, None)
+                data[key] = type.undictify(val, **kwargs)
+        return data
+
+    def undictify(self, value, **kwargs):
+        if value is None:
+            value = {}
+        if not isinstance(value, dict):
+            raise Invalid('not_dict')
+        # If fail_early is True, then gather all errors from this and its
+        # children. Otherwise, just raise the first error we encounter.
+        error_agg = ErrorAggregator(autoraise = kwargs.get('fail_early', False))
+        data = {}
+        for i, (key, val) in enumerate(value.items()):
+            with error_agg.checking_sub('key_{}'.format(i)):
+                key = self.key_type.undictify(key, **kwargs)
+            with error_agg.checking_sub('value_{}'.format(i)):
+                val = self.val_type.undictify(val, **kwargs)
+            data[key] = val
+        error_agg.raise_if_any()
+        return data
+
+    def dictify(self, value, **kwargs):
+        kdfy = lambda x: self.key_type.dictify(x, **kwargs)
+        vdfy = lambda x: self.val_type.dictify(x, **kwargs)
+        return {kdfy(key):vdfy(val) for (key, val) in value.items()}
+
+    def validate(self, value, **kwargs):
+        error_agg = ErrorAggregator(autoraise = kwargs.get('fail_early', False))
+        with error_agg.checking():
+            super(UniMapping, self).validate(value, **kwargs)
+        for i, (key, val) in enumerate(value.items()):
+            with error_agg.checking_sub('key_{}'.format(i)):
+                self.key_type.validate(key, **kwargs)
+            with error_agg.checking_sub('value_{}'.format(i)):
+                self.val_type.validate(val, **kwargs)
+        error_agg.raise_if_any()
+
+    # No notion of iterated access to elements, so this can't be used in a graph
+
+    def sub_dfier_keys(self, value=None):
+        return ()
+
+    def sub_dfier(self, key, value=None):
+        raise KeyError(key)
+
+    def sub_value_keys(self, value):
+        return ()
+
+    def sub_value(self, value, key):
+        raise KeyError(key)
 
 if __name__ == '__main__':
     import doctest

@@ -89,6 +89,33 @@ class Polymorph(Dictifier):
             raise Invalid("type_error")
         dfier.validate(value, **kwargs)
 
+    # Polymorph is unsual in that the type graph is very different if you
+    # provide a value. Without a value, the Polymorph is itself a node in the
+    # type graph, with the names and classes of its mapping as its edges. With
+    # a value, however, the Polymorph instead proxies to the value's structure.
+
+    def sub_dfier_keys(self, value=None):
+        if value is None:
+            return self.mapping.keys()
+        else:
+            dfier = self.get_dfier(value)
+            return dfier.sub_dfier_keys(value)
+
+    def sub_dfier(self, key, value=None):
+        if value is None:
+            return self.mapping[key]
+        else:
+            dfier = self.get_dfier(value)
+            return dfier.sub_dfier(key, value)
+
+    def sub_value_keys(self, value):
+        dfier = self.get_dfier(value)
+        return dfier.sub_value_keys(value)
+
+    def sub_value(self, value, key):
+        dfier = self.get_dfier(value)
+        return dfier.sub_value(key, value)
+
 if __name__ == '__main__':
     import doctest
     doctest.testmod()

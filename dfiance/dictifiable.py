@@ -1,6 +1,6 @@
 from abc import ABCMeta, abstractmethod
 
-from base import Dictifier, NestedDictifier, Invalid
+from base import Dictifier, Invalid
 
 class _EmptyClass:
     '''Placeholder class for undictifying Dictifiable instances.'''
@@ -45,8 +45,19 @@ class DictifiableDictifier(Dictifier):
             raise Invalid("type_error", expected=self.cls.__name__)
         value.__validate__(**kwargs)
 
+    def sub_dfier_keys(self, value=None):
+        return self.cls.sub_dfier_keys(value)
 
-class Dictifiable(object):
+    def sub_dfier(self, key, value=None):
+        return self.cls.sub_dfier(key, value)
+
+    def sub_value_keys(self, value):
+        return self.cls.sub_value_keys(value)
+
+    def sub_value(self, value, key):
+        return self.cls.sub_value(value, key)
+
+class Dictifiable(ABCMeta):
     '''An object that knows how to dictify/undictify itself.
 
     The class should implement three functions:
@@ -77,7 +88,6 @@ class Dictifiable(object):
     instead of just using the class.
 
     '''
-    __metaclass__ = ABCMeta
     # This class is almost itself a dictifier, but it isn't quite, because the
     # class's validate functions will crash given a value that isn't an instance
     # Python 3 will fix this, because instance methods are callable as
@@ -108,38 +118,27 @@ class Dictifiable(object):
         return self.dfier().validate(self, **kwargs)
 
 
-class NestedDictifiableDictifier(DictifiableDictifier, NestedDictifier):
-    '''Dictifier for NestedDictifiables.
-    '''
-    def sub(self, val, key):
-        return val.__get_sub__(key)
+    def __sub_value_keys__(self):
+        return ()
 
-    def sub_df(self, key):
-        return self.cls.__sub_df__(key)
+    def __sub_value__(self, key):
+        raise KeyError(key)
 
-    def keys(self, val):
-        return val.__df_keys__()
-
-class NestedDictifiable(Dictifiable):
     @classmethod
-    def dfier(cls):
-        return NestedDictifiableDictifier(cls)
+    def sub_dfier_keys(cls, value=None):
+        return ()
 
-    @abstractmethod
-    def __get_sub__(self, key):
-        raise NotImplementedError()
-
-    # Not abstract because abstractmethod and classmethod don't stack.
-    # Fixed in python 3 - http://bugs.python.org/issue5867
     @classmethod
-    def __sub_df__(self, key):
-        raise NotImplementedError()
+    def sub_dfier(cls, key, value=None):
+        raise KeyError(key)
 
-    @abstractmethod
-    def __df_keys__(self):
-        raise NotImplementedError()
+    @classmethod
+    def sub_value_keys(cls, value):
+        return value.__sub_value_keys__()
 
-
+    @classmethod
+    def sub_value(cls, value, key):
+        return value.__sub_value__(key)
 
 if __name__ == '__main__':
     import doctest

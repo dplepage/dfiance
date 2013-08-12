@@ -77,6 +77,16 @@ class NestedException(Exception):
         other = ', '.join('{0}: [{1}]'.format(key, err) for (key, err) in self.sub_errors.items())
         return ' '.join(x for x in [own, other] if x)
 
+    @staticmethod
+    def _flatten_helper(error):
+        if hasattr(error, 'flatten'):
+            return error.flatten()
+        return str(error)
+
+    def flatten(self):
+        d = {k:self._flatten_helper(e) for (k, e) in self.sub_errors.items()}
+        d['_self'] = [self._flatten_helper(e) for e in self.own_errors]
+        return d
 
 class ErrorAggregator(object):
     '''Helper class for trying several things and accumulating all errors.

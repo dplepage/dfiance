@@ -1,10 +1,10 @@
 from base import Invalid
-from mapping import Mapping
+from mapping import SchemaMapping
 
-class PyType(Mapping):
+class PyType(SchemaMapping):
     '''Dictifier for python objects with constructor functions.
 
-    This is a Mapping-based dictifier for objects that are described by a small
+    This is a SchemaMapping-based dictifier for objects that are described by a small
     number of attributes.
 
     The field_types arg specifies the types of the attributes of the objects you
@@ -76,6 +76,9 @@ class PyType(Mapping):
         mapping = self._obj_to_mapping(value)
         super(PyType, self).validate(mapping, **kwargs)
 
+    # Other graph walk functions are inherited from SchemaMapping
+    def sub_value(self, value, key):
+        return getattr(value, key)
 
 if __name__ == '__main__':
     import doctest

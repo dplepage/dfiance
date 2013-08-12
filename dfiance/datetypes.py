@@ -22,9 +22,9 @@ class DateTime(Dictifier):
     string dateutil can parse can be undictified:
 
     >>> dtfier = DateTime()
-    >>> dtfier.undictify("12/25/2003")
+    >>> dtfier.undictify("2003-12-25")
     datetime.datetime(2003, 12, 25, 0, 0)
-    >>> dtfier.undictify("12/25/2003 14:25:03.1")
+    >>> dtfier.undictify("2003-12-25T14:25:03.1")
     datetime.datetime(2003, 12, 25, 14, 25, 3, 100000)
     >>> dtfier.undictify("Dec 25, 2003 2:25:03.1 pm")
     datetime.datetime(2003, 12, 25, 14, 25, 3, 100000)
@@ -32,27 +32,27 @@ class DateTime(Dictifier):
 
     Invalid strings get specific error messages:
 
-    >>> dtfier.undictify("12/25/20003")
+    >>> dtfier.undictify("200003-12-25")
     Traceback (most recent call last):
     ...
     Invalid: bad_year
-    >>> dtfier.undictify("13/25/2003")
+    >>> dtfier.undictify("2003-13-25")
     Traceback (most recent call last):
     ...
     Invalid: bad_month
-    >>> dtfier.undictify("12/32/2003")
+    >>> dtfier.undictify("2003-12-32")
     Traceback (most recent call last):
     ...
     Invalid: bad_day
-    >>> dtfier.undictify("12/25/2003 26:25:03.1")
+    >>> dtfier.undictify("2003-12-25T26:25:03.1")
     Traceback (most recent call last):
     ...
     Invalid: bad_hour
-    >>> dtfier.undictify("12/25/2003 14:71:03.1")
+    >>> dtfier.undictify("2003-12-25T14:71:03.1")
     Traceback (most recent call last):
     ...
     Invalid: bad_minute
-    >>> dtfier.undictify("12/25/2003 14:25:93.1")
+    >>> dtfier.undictify("2003-12-25T14:25:93.1")
     Traceback (most recent call last):
     ...
     Invalid: bad_second
@@ -60,7 +60,7 @@ class DateTime(Dictifier):
 
     Non-numbers get generic "bad_format" error messages:
 
-    >>> dtfier.undictify("12/hello/2003")
+    >>> dtfier.undictify("2003-hello-12")
     Traceback (most recent call last):
     ...
     Invalid: bad_format
@@ -75,11 +75,11 @@ class DateTime(Dictifier):
 
 
     Dictifying will serialize to self.format, which defaults to
-    "%m/%d/%Y %H:%M:%S.%f" but can be set to anything.
+    "%Y-%m-%dT%H:%M:%S.%f" but can be set to anything.
 
     >>> d = datetime.datetime(2003, 12, 25, 14, 21, 3, 100500)
     >>> DateTime().dictify(d)
-    u'12/25/2003 14:21:03.100500'
+    u'2003-12-25T14:21:03.100500'
     >>> DateTime(format='%I:%M:%S.%f%p on %h %e, %Y').dictify(d)
     u'02:21:03.100500PM on Dec 25, 2003'
 
@@ -120,13 +120,13 @@ class DateTime(Dictifier):
     Like all good dictifiers, undictify is idempotent:
 
     >>> dtfier = DateTime()
-    >>> dt = dtfier.undictify("1/1/2003")
+    >>> dt = dtfier.undictify("2003-1-1")
     >>> dtfier.undictify(dt) == dt
     True
     """
     _dt_type = datetime.datetime
 
-    def __init__(self, format="%m/%d/%Y %H:%M:%S.%f", require_format=not _have_dateutil):
+    def __init__(self, format="%Y-%m-%dT%H:%M:%S.%f", require_format=not _have_dateutil):
         self.format = format
         if not require_format and not _have_dateutil:
             msg = ("Can't parse dates or times with require_format=False"
@@ -170,11 +170,11 @@ class DateTime(Dictifier):
             return value
         return self.parse_datetime(value)
 
-    def validate(self, value):
+    def validate(self, value, **kwargs):
         if not isinstance(value, self._dt_type):
             raise Invalid("type_error")
 
-    def dictify(self, value):
+    def dictify(self, value, **kwargs):
         return unicode(value.strftime(self.format))
 
 class Date(DateTime):
@@ -186,25 +186,25 @@ class Date(DateTime):
     Dateutil parsing:
 
     >>> date = Date()
-    >>> date.undictify("12/25/2003")
+    >>> date.undictify("2003-12-25")
     datetime.date(2003, 12, 25)
 
     Error msgs for each field that can fail, contingent on dateutil recognizing
     that something is the field in question:
 
-    >>> date.undictify("13/25/2003")
+    >>> date.undictify("2003-13-25")
     Traceback (most recent call last):
     ...
     Invalid: bad_month
-    >>> date.undictify("12/32/2003")
+    >>> date.undictify("2003-12-32")
     Traceback (most recent call last):
     ...
     Invalid: bad_day
-    >>> date.undictify("12/25/20003")
+    >>> date.undictify("200000-12-25")
     Traceback (most recent call last):
     ...
     Invalid: bad_year
-    >>> date.undictify("12/hi/2003")
+    >>> date.undictify("2003-hi-12")
     Traceback (most recent call last):
     ...
     Invalid: bad_format
@@ -240,13 +240,13 @@ class Date(DateTime):
     As a side effect of dateutil, the Date dictifier WILL undictify strings
     dateutil parses as full datetimes, discarding the time:
 
-    >>> Date().undictify('12/25/2003 14:21:03.100500')
+    >>> Date().undictify('2003-12-25 14:21:03.100500')
     datetime.date(2003, 12, 25)
     """
 
     _dt_type = datetime.date
 
-    def __init__(self, format="%m/%d/%Y"):
+    def __init__(self, format="%Y-%m-%d"):
         super(Date, self).__init__(format)
 
     def undictify(self, value, **kwargs):

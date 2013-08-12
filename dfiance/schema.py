@@ -1,5 +1,5 @@
 from base import Invalid, ErrorAggregator, Field
-from dictifiable import NestedDictifiable
+from dictifiable import Dictifiable
 from subclass import Subclassable
 
 def overlay(d1, d2, strip_none=True):
@@ -18,23 +18,16 @@ def overlay(d1, d2, strip_none=True):
                 del x[key]
     return x
 
-class SchemaObj(Subclassable, NestedDictifiable):
+class SchemaObj(Subclassable, Dictifiable):
     extra_field_policy = "ignore"
     field_types = dict()
 
     def __init__(self, **kwargs):
+        for key in self.field_types:
+            if key not in kwargs:
+                kwargs[key] = None
         for key, value in kwargs.items():
             setattr(self, key, value)
-
-    def __df_keys__(self):
-        return self.field_types.keys()
-
-    @classmethod
-    def __sub_df__(cls, key):
-        return cls.field_types[key]
-
-    def __get_sub__(self, key):
-        return getattr(self, key)
 
     @classmethod
     def __subclass__(cls, field_types={}, **kwargs):
@@ -45,6 +38,8 @@ class SchemaObj(Subclassable, NestedDictifiable):
         deleted.
         '''
         super(SchemaObj, cls).__subclass__(**kwargs)
+        if callable(field_types):
+            field_types = field_types(cls)
         cls.field_types = overlay(cls.field_types, field_types)
         for key, field_or_dfier in cls.field_types.iteritems():
             cls.field_types[key] = Field.asfield(field_or_dfier)
@@ -83,7 +78,7 @@ class SchemaObj(Subclassable, NestedDictifiable):
     def __dictify__(self, **kwargs):
         result = {}
         for key, typ in self.field_types.items():
-            result[key] = typ.dictify(getattr(self, key))
+            result[key] = typ.dictify(getattr(self, key), **kwargs)
         return result
 
     def __validate__(self, **kwargs):
@@ -106,6 +101,20 @@ class SchemaObj(Subclassable, NestedDictifiable):
 
     def validate(self, **kwargs):
         return self.dfier().validate(self, **kwargs)
+
+    @classmethod
+    def sub_dfier_keys(cls, value=None):
+        return cls.field_types.keys()
+
+    @classmethod
+    def sub_dfier(cls, key, value=None):
+        return cls.field_types[key]
+
+    def __sub_value_keys__(self):
+        return self.sub_dfier_keys()
+
+    def __sub_value__(self, key):
+        return getattr(self, key, None)
 
 
 class DeclSchemaObj(SchemaObj):

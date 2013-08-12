@@ -19,6 +19,9 @@ class SingleInvalid(Exception):
         self.message = message
         self.kwargs = kwargs
 
+    def flatten(self):
+        return dict(message=self.message, kwargs=self.kwargs)
+
 
 class Invalid(NestedException):
     '''Base class for undictification errors of nested objects.
@@ -38,8 +41,7 @@ class ErrorAggregator(_ErrAgg):
     catch_type = Invalid
 
 
-class Validator(object):
-    __metaclass__ = ABCMeta
+class Validator(ABCMeta):
     '''Abstract base class for Validators.'''
     def validate(self, value, **kwargs):
         return
@@ -55,29 +57,41 @@ class Dictifier(Validator):
     def undictify(self, value, **kwargs):
         raise NotImplementedError()
 
-class NestedDictifier(Dictifier):
-    @abstractmethod
-    def sub(self, val, key):
-        raise NotImplementedError()
+    #
+    # These four functions expose the graph structure of nested Dictifiers.
+    # Each dfier can have sub dfiers, and each value that can be dictified can
+    # have sub-values. The structure of the two graphs may be different. For
+    # example, a "list of integers" dfier has "integer" as a single sub-dfier,
+    # but a actual list of integer values has each integer as a sub-value.
+    #
+    # You can pass a value in when walking the structure of the dfier. This is
+    # ignored for many dfiers, but some, like the List, will change their keys
+    # accordingly, and some, like the Polymorph, produce very different graphs
+    # with and without a value.
+    #
+    def sub_dfier_keys(self, value=None):
+        return ()
 
-    @abstractmethod
-    def sub_df(self, key):
-        raise NotImplementedError()
+    def sub_dfier(self, key, value=None):
+        raise KeyError(key)
 
-    @abstractmethod
-    def keys(self, val):
-        raise NotImplementedError()
+    def sub_value_keys(self, value):
+        return ()
 
-    @classmethod
-    def __instancecheck__(cls, inst):
-        if super(NestedDictifier, cls).__instancecheck__(inst):
-            return True
-        attrs = ['sub', 'sub_df', 'keys', 'dictify', 'undictify', 'validate']
-        if all(hasattr(inst, x) for x in attrs):
-            return True
-        return False
+    def sub_value(self, value, key):
+        raise KeyError(key)
 
-class Field(NestedDictifier):
+
+class Anything(Dictifier):
+    '''Dictifier for things like JSON dicts that are already dictified'''
+    def dictify(self, value, **kwargs):
+        return value
+
+    def undictify(self, value, **kwargs):
+        return value
+
+
+class Field(Dictifier):
     '''Wrapper around a dictifier and an optional list of validators.
 
     A Field behaves like the dictifier handed to it on intialization, except in
@@ -87,33 +101,17 @@ class Field(NestedDictifier):
     2. It can have additional validators attached to it
 
     It passes None through dictify unchanged; on validation or undictifiance, it
-    treats None as valid unless self.not_empty is True, in which case it raises
+    treats None as valid unless self.not_none is True, in which case it raises
     Invalid("empty")
 
     If a list of validators is passed on initialization, then field.validate()
     will call each validator in order and raise a NestedInvalid with all of
     their exceptions if any of them fail.
     '''
-    def __init__(self, dfier, vdators=(), not_empty=False):
+    def __init__(self, dfier, vdators=(), not_none=False):
         self.dfier = dfier
         self.vdators = tuple(vdators)
-        self.not_empty = not_empty
-        self.is_nested = isinstance(self.dfier, NestedDictifier)
-
-    def keys(self, value):
-        if self.is_nested and value is not None:
-            return self.dfier.keys(value)
-        return set()
-
-    def sub(self, value, key):
-        if self.is_nested and value is not None:
-            return self.dfier.sub(value, key)
-        raise KeyError(key)
-
-    def sub_df(self, key):
-        if self.is_nested:
-            return self.dfier.sub_df(key)
-        raise KeyError(key)
+        self.not_none = not_none
 
     def dictify(self, value, **kwargs):
         if value is None:
@@ -122,14 +120,15 @@ class Field(NestedDictifier):
 
     def undictify(self, value, **kwargs):
         if value is None:
-            if self.not_empty:
-                raise Invalid("empty")
+            # None is always valid when undictifying - the not_none flag only
+            # applies when you validate the data.
+            # TODO consider whether this is really desirable.
             return None
         return self.dfier.undictify(value, **kwargs)
 
     def validate(self, value, **kwargs):
         if value is None:
-            if self.not_empty:
+            if self.not_none:
                 raise Invalid("empty")
             return
         fail_early = kwargs.get("dfy_fail_early", False)
@@ -148,6 +147,23 @@ class Field(NestedDictifier):
             return dfier
         return Field(dfier)
 
+    def sub_dfier_keys(self, value=None):
+        return self.dfier.sub_dfier_keys(value)
+
+    def sub_dfier(self, key, value=None):
+        return self.dfier.sub_dfier(key, value)
+
+    def sub_value_keys(self, value):
+        return self.dfier.sub_value_keys(value)
+
+    def sub_value(self, value, key, on_none='error'):
+        if value is None:
+            if on_none == 'error':
+                raise KeyError(key)
+            return None
+        return self.dfier.sub_value(value, key)
+
+
 def _doctest_field_tests():
     '''
     Empty function so I can write tests in doctest form.
@@ -157,12 +173,9 @@ def _doctest_field_tests():
     >>> field.dictify(None)
     >>> field.undictify(None)
     >>> field.validate(None)
-    >>> req_field = Field(Int(), not_empty=True)
+    >>> req_field = Field(Int(), not_none=True)
     >>> req_field.dictify(None)
     >>> req_field.undictify(None)
-    Traceback (most recent call last):
-    ...
-    Invalid: empty
     >>> req_field.validate(None)
     Traceback (most recent call last):
     ...

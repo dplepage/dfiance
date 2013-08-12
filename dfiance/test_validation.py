@@ -52,3 +52,7 @@ def test_invalid():
             assert e.sub_errors[k][0].message == expected_errors[k]
     else:
         assert False, "Should have raised NestedInvalid!"
+
+if __name__ == '__main__':
+    test_valid()
+    test_invalid()

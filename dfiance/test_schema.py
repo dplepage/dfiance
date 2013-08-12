@@ -58,3 +58,10 @@ def test_nested():
     x = TwoPoints.undictify(dict(a=plain_data, b=plain_data))
     assert x.a.x == x.b.x == -12
     assert x.dictify() == dict(a=plain_data, b=plain_data)
+
+if __name__ == '__main__':
+    test_basic()
+    test_errors()
+    test_ban_extra()
+    test_construct()
+    test_nested()
