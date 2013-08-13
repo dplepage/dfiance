@@ -57,7 +57,8 @@ class DictifiableDictifier(Dictifier):
     def sub_value(self, value, key):
         return self.cls.sub_value(value, key)
 
-class Dictifiable(ABCMeta):
+class Dictifiable(object):
+    __metaclass__ = ABCMeta
     '''An object that knows how to dictify/undictify itself.
 
     The class should implement three functions:

@@ -41,7 +41,8 @@ class ErrorAggregator(_ErrAgg):
     catch_type = Invalid
 
 
-class Validator(ABCMeta):
+class Validator(object):
+    __metaclass__ = ABCMeta
     '''Abstract base class for Validators.'''
     def validate(self, value, **kwargs):
         return
